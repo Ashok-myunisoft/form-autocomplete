@@ -1,0 +1,502 @@
+[
+    {
+        "Id": -1499999992,
+        "Code": null,
+        "Name": "PBS - GB3",
+        "ShortName": "PBS",
+        "Description": "PBS - GB3",
+        "PartyId": -1499999587,
+        "PartyName": "PBS - GB3",
+        "PartyCode": "PBS - GB3"
+    },
+    {
+        "Id": -1499998172,
+        "Name": "GB Website Rewamp",
+        "ShortName": "GBWR",
+        "Description": "GoodBooks Website Rewamp",
+        "PartyId": -1499999587,
+        "PartyName": "PBS - GB3",
+        "PartyCode": "PBS - GB3",
+        "Code": null
+    },
+    {
+        "Id": -1499999744,
+        "Name": "CAPRICORN",
+        "ShortName": "CAPRICORN",
+        "Description": "Capricorn",
+        "PartyId": -1499999161,
+        "PartyName": "Capricorn Infotech India Pvt Ltd",
+        "PartyCode": "SL00013",
+        "Code": null
+    },
+    {
+        "Id": -1499999997,
+        "Name": "HILIFE",
+        "ShortName": "HILIFE",
+        "Description": "HILIFE Project Implementation",
+        "PartyId": -1499999156,
+        "PartyName": "Hi Life Labels",
+        "PartyCode": "SL00018",
+        "Code": null
+    },
+    {
+        "Id": -1499999987,
+        "Name": "SLT",
+        "ShortName": "SLT",
+        "Description": "Sharp Liqtech",
+        "PartyId": -1499999152,
+        "PartyName": "Sharp Liqtech",
+        "PartyCode": "SL00023",
+        "Code": null
+    },
+    {
+        "Id": -1499999743,
+        "Name": "MAA Engg",
+        "ShortName": "MAA",
+        "Description": "MAA Engineering",
+        "PartyId": -1499999152,
+        "PartyName": "Sharp Liqtech",
+        "PartyCode": "SL00023",
+        "Code": null
+    },
+    {
+        "Id": -1499999990,
+        "Name": "RHP",
+        "ShortName": "RHP",
+        "Description": "RHP Project Implementation",
+        "PartyId": -1499999131,
+        "PartyName": "Ramesh Hitechk Pumps Pvt LTD",
+        "PartyCode": "SL00049",
+        "Code": null
+    },
+    {
+        "Id": -1499999963,
+        "Name": "PRPL",
+        "ShortName": "PRPL",
+        "Description": "Prakash Retail Private Limited",
+        "PartyId": -1499999121,
+        "PartyName": "Prakash Retail Pvt.Ltd.",
+        "PartyCode": "SL00059",
+        "Code": null
+    },
+    {
+        "Id": -1499999991,
+        "Name": "PPT",
+        "ShortName": "PPT",
+        "Description": "PPT Project Implementation",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999995,
+        "Name": "UNISOFT-GB-IMPLN",
+        "ShortName": "USC",
+        "Description": "UNISOFT Project Implementation",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999994,
+        "Name": "GB4 - Common",
+        "ShortName": "GB4",
+        "Description": "GB4 - Common Development",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999133,
+        "Name": "GB WebSite",
+        "ShortName": "GBWS",
+        "Description": "Goodbooks WebSite",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999132,
+        "Name": "Product Guide",
+        "ShortName": "PROGUIDE",
+        "Description": "Product Guide",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999131,
+        "Name": "Demo Kit",
+        "ShortName": "DEMOKIT",
+        "Description": "Demo Kit",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999130,
+        "Name": "PromoVideos",
+        "ShortName": "PROMOVD",
+        "Description": "Promo Videos",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999129,
+        "Name": "Demo",
+        "ShortName": "DEMO",
+        "Description": "Demo",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999128,
+        "Name": "Training Implementation",
+        "ShortName": "TRGIMP",
+        "Description": "Training Implementation",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999127,
+        "Name": "General Implementation",
+        "ShortName": "GENERALIMP",
+        "Description": "General Implementation",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999126,
+        "Name": "GB4.5",
+        "ShortName": "GB4.5",
+        "Description": "GB4.5",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999125,
+        "Name": "TestLink Tool",
+        "ShortName": "TLT",
+        "Description": "TestLink Tool",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999124,
+        "Name": "Bug Analysis",
+        "ShortName": "BUGANAL",
+        "Description": "Bug Analysis",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999123,
+        "Name": "Dev Quality",
+        "ShortName": "DEVQLITY",
+        "Description": "Development Quality",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999122,
+        "Name": "Automated Testing",
+        "ShortName": "AUTOTEST",
+        "Description": "Automated Testing",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999121,
+        "Name": "Self Provisioning",
+        "ShortName": "SELFPRO",
+        "Description": "Self Provisioning",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999120,
+        "Name": "Self Onboarding",
+        "ShortName": "SELFNBOARD",
+        "Description": "Self Onboarding",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999119,
+        "Name": "Process",
+        "ShortName": "PROCESS",
+        "Description": "Process",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999118,
+        "Name": "Support Mgt",
+        "ShortName": "SUPMGT",
+        "Description": "Support Management",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999117,
+        "Name": "Usage Drive",
+        "ShortName": "USGDRIVE",
+        "Description": "Usage Drive",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999116,
+        "Name": "Container",
+        "ShortName": "CONTAINER",
+        "Description": "Container",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999115,
+        "Name": "CI-CD",
+        "ShortName": "CICD",
+        "Description": "CI-CD",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999114,
+        "Name": "Streamline infra",
+        "ShortName": "STD",
+        "Description": "Streamline infrastructure - server etc",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999113,
+        "Name": "Technology Upgrade",
+        "ShortName": "TECHUPD",
+        "Description": "Technology Upgrade",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999112,
+        "Name": "Unisoft - Recruitment",
+        "ShortName": "UNIREC",
+        "Description": "Unisoft - Recruitment",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999111,
+        "Name": "Unisoft - Perf. Mgt",
+        "ShortName": "UNIPERFMGT",
+        "Description": "Unisoft - Perf. Mgt",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999110,
+        "Name": "Unisoft - Appraisal",
+        "ShortName": "UNIAPPRAIS",
+        "Description": "Unisoft - Appraisal",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999109,
+        "Name": "Unisoft - Training",
+        "ShortName": "UNITRG",
+        "Description": "Unisoft - Training",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999108,
+        "Name": "Chatbot",
+        "ShortName": "CHATBOT",
+        "Description": "Chatbot",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999107,
+        "Name": "Training Mgt",
+        "ShortName": "TRGMGT",
+        "Description": "Training Mgt",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999106,
+        "Name": "ECM",
+        "ShortName": "ECM",
+        "Description": "ECM",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999105,
+        "Name": "Mobile",
+        "ShortName": "MOBILE",
+        "Description": "Mobile",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999104,
+        "Name": "Customer Portal",
+        "ShortName": "CUSTPORTAL",
+        "Description": "Customer Portal",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999103,
+        "Name": "Vendor Portal",
+        "ShortName": "VENPORTAL",
+        "Description": "Vendor Portal",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499998171,
+        "Name": "Project Mangement Application",
+        "ShortName": "PMA",
+        "Description": "To develop a project management application",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499998188,
+        "Name": "Sharp Hydro",
+        "ShortName": "SharpHydro",
+        "Description": "Sharp Hydro",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499998169,
+        "Name": "Lift Tech Engineers",
+        "ShortName": "Lift Tech",
+        "Description": "Lift Tech Engineers",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999068,
+        "Name": "SHRIHARIBAGS",
+        "ShortName": "SHRIHARI",
+        "Description": "Shri Hari Bags Pvt Ltd",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999067,
+        "Name": "ARTEX",
+        "ShortName": "ARTEX",
+        "Description": "ARTEX",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999024,
+        "Name": "USS",
+        "ShortName": "USS",
+        "Description": "Unisoft Support System",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499998276,
+        "Name": "ESS",
+        "ShortName": "ESS",
+        "Description": "Employee Portal",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    },
+    {
+        "Id": -1499999265,
+        "Name": "WELRICH",
+        "ShortName": "WELRICH",
+        "Description": "WELRICH",
+        "PartyId": -1499999098,
+        "PartyName": "Unisoft System Consutlancy",
+        "PartyCode": "SL00101",
+        "Code": null
+    }
+]

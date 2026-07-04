@@ -1,0 +1,30 @@
+# Ignore git files
+.git
+.gitignore
+
+# Ignore docker files
+Dockerfile
+.dockerignore
+
+# Ignore python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore local environment files and virtual environments
+.env
+venv/
+.venv/
+env/
+ENV/
+
+# Ignore editor and system files
+.vscode/
+.idea/
+.DS_Store
+
+# Ignore test and coverage logs
+.pytest_cache/
+.coverage
+htmlcov/

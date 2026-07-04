@@ -1,0 +1,14 @@
+# Personalization & Backend Processing
+Flask==3.0.3
+Werkzeug==3.0.3
+
+# Predictive Models & Vectorization
+scikit-learn==1.6.1
+numpy==1.26.4
+scipy==1.15.1
+
+# High-Fidelity Ingestion & Database Vector Engine
+psycopg2-binary==2.9.9
+
+# Environment and Data Utilities
+python-dotenv==1.0.1

@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contextual Picklist Matrix Dashboard</title>
+    <script src="https://cdn.tailwindcss.com/3.4.15"></script>
+    <style>
+        body {
+            background-color: #0b0b0c;
+            color: #e4e4e7;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .card-container {
+            background-color: #121214;
+            border: 1px solid #1f1f23;
+        }
+        .dropdown-tray {
+            background-color: #16161a;
+            border: 1px solid #2e2e35;
+            box-shadow: 0 12px 30px -4px rgba(17, 17, 17, 0.85);
+            max-height: 240px;
+            overflow-y: auto;
+            position: absolute; left: 0; right: 0; top: 105%;
+            z-index: 9999; border-radius: 8px;
+        }
+        .ghost-overlay {
+            color: #4b4b54;
+            pointer-events: none;
+        }
+        .badge-ai {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: #000000;
+        }
+        .nav-tab-active {
+            border-bottom: 2px solid #f59e0b;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center min-h-screen justify-start pt-12 pb-24">
+
+    <div id="auth-gate-view" class="w-full max-w-md card-container p-6 rounded-2xl shadow-2xl mt-12 space-y-6">
+        <div class="text-center">
+            <h2 class="text-2xl font-bold tracking-tight text-white">Identity Access Gate</h2>
+            <p class="text-xs text-neutral-400 mt-1">Select an active ledger profile email to synchronize metrics</p>
+        </div>
+        <div class="space-y-2">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-neutral-400">Ledger Account Identity</label>
+            <div class="relative">
+                <select id="auth-user-dropdown" class="w-full h-12 bg-[#18181c] border border-neutral-800 text-sm rounded-xl px-4 text-white appearance-none cursor-pointer focus:outline-none focus:border-neutral-600">
+                    <option value="" disabled selected>Retrieving accounts from master records...</option>
+                </select>
+                <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-neutral-500 text-xs">▼</div>
+            </div>
+        </div>
+        <button onclick="executeIdentityHandshake()" class="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-semibold rounded-xl text-sm transition tracking-wide shadow-lg">
+            Establish Matrix Session
+        </button>
+    </div>
+
+    <div id="main-workspace-view" class="w-full max-w-2xl space-y-6 hidden">
+        <header class="flex justify-between items-center border-b border-neutral-800/60 pb-2">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight text-white">Data Management Hub</h1>
+                <p class="text-xs text-neutral-400 mt-1" id="session-identity-banner">Real-Time Fluid State Stream Matrix Flow</p>
+            </div>
+            <button onclick="terminateSession()" class="text-xs bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 px-3 py-1.5 rounded-lg font-medium text-neutral-300 transition">
+                Change User ↩
+            </button>
+        </header>
+
+        <div class="w-full card-container p-5 rounded-2xl space-y-4 shadow-2xl border border-neutral-800/80 bg-[#111113]">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center">
+                    <span class="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse"></span>
+                    Engine Analytics & Accuracy Profiler
+                </h2>
+                <span id="save-status-indicator" class="text-[10px] font-mono text-neutral-500">All changes auto-saved to DB</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-[#16161a] border border-neutral-800 p-4 rounded-xl">
+                    <div class="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">AI Prediction Accuracy</div>
+                    <div class="text-2xl font-mono font-bold text-amber-400 mt-1" id="metric-accuracy">0.00%</div>
+                    <div class="text-[10px] text-neutral-400 mt-1">Context-Aware Match Hit Rate</div>
+                </div>
+                <div class="bg-[#16161a] border border-neutral-800 p-4 rounded-xl">
+                    <div class="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">TF-IDF Vector Training</div>
+                    <div class="text-2xl font-mono font-bold text-emerald-400 mt-1" id="metric-train-time">0.0000s</div>
+                    <div class="text-[10px] text-neutral-400 mt-1">In-Memory Compilation Speed</div>
+                </div>
+                <div class="bg-[#16161a] border border-neutral-800 p-4 rounded-xl">
+                    <div class="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">Live Retrieval Latency</div>
+                    <div class="text-2xl font-mono font-bold text-cyan-400 mt-1" id="metric-latency">0.000 ms</div>
+                    <div class="text-[10px] text-neutral-400 mt-1">Dropdown Aggregation Window</div>
+                </div>
+            </div>
+            <div class="text-[11px] text-neutral-500 font-mono text-center border-t border-neutral-800/60 pt-2">
+                Active Analytical Footprint: <span class="text-neutral-300" id="metric-total-records">0</span> Logged Row Variations
+            </div>
+        </div>
+
+        <div class="flex space-x-6 border-b border-neutral-800 text-sm text-neutral-400 font-medium">
+            <button id="tab-matrix" onclick="switchScreen('matrix')" class="pb-3 nav-tab-active transition focus:outline-none">Unified Matrix View</button>
+            <button id="tab-separate" onclick="switchScreen('separate')" class="pb-3 transition focus:outline-none text-neutral-400">Dedicated Category Screen</button>
+        </div>
+
+        <div id="screen-unified-matrix" class="space-y-4">
+            <div class="flex items-center justify-between">
+                <p class="text-xs text-neutral-400 italic">No save buttons needed. Fields record to PostgreSQL instantly as choices are made.</p>
+                <button onclick="clearFullForm()" class="text-[10px] uppercase font-bold tracking-wider text-red-400 hover:text-red-500 transition">Reset Blank Slate</button>
+            </div>
+            <div id="picklist-form-space" class="space-y-5"></div>
+        </div>
+
+        <div id="screen-separate-category" class="space-y-6 hidden">
+            <div class="card-container p-6 rounded-2xl space-y-4 shadow-xl">
+                <div>
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-neutral-300">Target Data Stream</h3>
+                    <p class="text-xs text-neutral-500">Isolate input validation workflows on a separate, dedicated channel.</p>
+                </div>
+                <div class="grid grid-cols-3 sm:grid-cols-5 gap-2" id="separate-datatype-selectors">
+                    <button onclick="selectSeparateType('Activity')" data-type="Activity" class="sep-type-btn py-2 text-xs font-semibold rounded-lg card-container border border-amber-500/40 text-white bg-neutral-800 transition">Activity</button>
+                    <button onclick="selectSeparateType('Allocation')" data-type="Allocation" class="sep-type-btn py-2 text-xs font-semibold rounded-lg card-container text-neutral-400 hover:text-white transition">Allocation</button>
+                    <button onclick="selectSeparateType('Assignee')" data-type="Assignee" class="sep-type-btn py-2 text-xs font-semibold rounded-lg card-container text-neutral-400 hover:text-white transition">Assignee</button>
+                    <button onclick="selectSeparateType('Incharge')" data-type="Incharge" class="sep-type-btn py-2 text-xs font-semibold rounded-lg card-container text-neutral-400 hover:text-white transition">Incharge</button>
+                    <button onclick="selectSeparateType('Requester')" data-type="Requester" class="sep-type-btn py-2 text-xs font-semibold rounded-lg card-container text-neutral-400 hover:text-white transition">Requester</button>
+                </div>
+                <div class="relative flex flex-col pt-2" id="separate-input-wrapper">
+                    <label id="lbl-separate-title" class="block text-xs font-semibold uppercase tracking-wider text-amber-500 mb-2">Activity Selector Workspace</label>
+                    <div class="relative rounded-lg bg-[#18181c] border border-neutral-800 focus-within:border-neutral-600 transition h-12 flex items-center">
+                        <div id="ghost-SeparateField" class="ghost-overlay absolute inset-y-0 left-0 flex items-center pl-4 text-sm font-mono whitespace-pre"></div>
+                        <input type="text" id="input-SeparateField" placeholder="Click or type to log single interaction..." autocomplete="off" class="w-full h-full bg-transparent text-sm text-white font-sans pl-4 pr-12 focus:outline-none relative z-10" />
+                        <div class="absolute right-4 flex items-center pointer-events-none text-neutral-500 text-xs">▼</div>
+                    </div>
+                    <div id="tray-SeparateField" class="dropdown-tray hidden"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:8000/api";
+        let CURRENT_USER_ID = null;
+        const CURRENT_FORM_ID = 1; 
+        let GLOBAL_USER_POOL = [];
+        let ACTIVE_SEPARATE_TYPE = "Activity";
+        let SEPARATE_SELECTED_ID = null;
+
+        const WORKSPACE_STORE = {
+            "Activity": null, "Allocation": null, "Assignee": null, "Incharge": null, "Requester": null
+        };
+
+        const PICKLIST_FIELDS = [
+            { id: "Activity", label: "Activity Selector", placeholder: "Click or type to look up activities..." },
+            { id: "Allocation", label: "Allocation / Project Descriptor", placeholder: "Click or type to look up projects..." },
+            { id: "Assignee", label: "Assignee Field", placeholder: "Click or type to look up assignees..." },
+            { id: "Incharge", label: "Task In-Charge Allocation", placeholder: "Click or type to look up incharges..." },
+            { id: "Requester", label: "Requester Node", placeholder: "Click or type to look up requesters..." }
+        ];
+
+        async function updatePerformanceMetricsDashboard() {
+            if (!CURRENT_USER_ID) return;
+            try {
+                const res = await fetch(`${API_BASE}/performance-metrics?user_id=${CURRENT_USER_ID}`);
+                const data = await res.json();
+                document.getElementById("metric-accuracy").innerText = data.prediction_accuracy_percentage.toFixed(2) + "%";
+                document.getElementById("metric-train-time").innerText = data.tfidf_training_time_seconds.toFixed(4) + "s";
+                document.getElementById("metric-latency").innerText = data.index_search_latency_ms.toFixed(3) + " ms";
+                document.getElementById("metric-total-records").innerText = data.total_records_analyzed.toLocaleString();
+            } catch (err) { console.error(err); }
+        }
+
+        function switchScreen(target) {
+            const btnMatrix = document.getElementById("tab-matrix");
+            const btnSeparate = document.getElementById("tab-separate");
+            const screenUnified = document.getElementById("screen-unified-matrix");
+            const screenSeparate = document.getElementById("screen-separate-category");
+
+            if (target === 'matrix') {
+                btnMatrix.className = "pb-3 nav-tab-active transition focus:outline-none";
+                btnSeparate.className = "pb-3 transition focus:outline-none text-neutral-400";
+                screenUnified.classList.remove("hidden");
+                screenSeparate.classList.add("hidden");
+            } else {
+                btnSeparate.className = "pb-3 nav-tab-active transition focus:outline-none";
+                btnMatrix.className = "pb-3 transition focus:outline-none text-neutral-400";
+                screenSeparate.classList.remove("hidden");
+                screenUnified.classList.add("hidden");
+                selectSeparateType(ACTIVE_SEPARATE_TYPE);
+            }
+        }
+
+        async function fetchAvailableUsers() {
+            try {
+                const res = await fetch(`${API_BASE}/users`);
+                GLOBAL_USER_POOL = await res.json();
+                const selectEl = document.getElementById("auth-user-dropdown");
+                selectEl.innerHTML = '<option value="" disabled selected>Select an identity email profile...</option>';
+                GLOBAL_USER_POOL.forEach(user => {
+                    const option = document.createElement("option");
+                    option.value = user.id; option.textContent = `${user.email} (${user.name})`;
+                    selectEl.appendChild(option);
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        function executeIdentityHandshake() {
+            const selectedId = document.getElementById("auth-user-dropdown").value;
+            if (!selectedId) { alert("Please select a profile email from the options tray."); return; }
+            const verifiedUser = GLOBAL_USER_POOL.find(u => u.id == selectedId);
+            if (!verifiedUser) return;
+
+            CURRENT_USER_ID = verifiedUser.id;
+            document.getElementById("session-identity-banner").innerText = `Synchronized Session: ${verifiedUser.name} | Identifier: ${verifiedUser.code}`;
+            document.getElementById("auth-gate-view").classList.add("hidden");
+            document.getElementById("main-workspace-view").classList.remove("hidden");
+            initializeFormFields();
+            setupSeparateFieldPipeline();
+            updatePerformanceMetricsDashboard();
+        }
+
+        function terminateSession() {
+            CURRENT_USER_ID = null;
+            Object.keys(WORKSPACE_STORE).forEach(key => {
+                WORKSPACE_STORE[key] = null;
+                const visualField = document.getElementById(`input-${key}`);
+                if (visualField) {
+                    visualField.value = "";
+                    visualField.dataset.isTyping = "false";
+                }
+                const ghostField = document.getElementById(`ghost-${key}`);
+                if (ghostField) ghostField.innerText = "";
+            });
+
+            document.getElementById("picklist-form-space").innerHTML = "";
+            document.getElementById("main-workspace-view").classList.add("hidden");
+            document.getElementById("auth-gate-view").classList.remove("hidden");
+            fetchAvailableUsers();
+        }
+
+        function clearFullForm() {
+            PICKLIST_FIELDS.forEach(field => {
+                const inputEl = document.getElementById(`input-${field.id}`);
+                if (inputEl) {
+                    inputEl.value = "";
+                    inputEl.dataset.isTyping = "false";
+                }
+                const ghostEl = document.getElementById(`ghost-${field.id}`);
+                if (ghostEl) ghostEl.innerText = "";
+                WORKSPACE_STORE[field.id] = null;
+            });
+        }
+
+        async function fireAutomaticBackgroundSave(dataType, dataId, textLabel) {
+            const indicator = document.getElementById("save-status-indicator");
+            indicator.innerText = "⏳ Saving choice to DB...";
+            indicator.className = "text-[10px] font-mono text-amber-500";
+            
+            try {
+                const response = await fetch(`${API_BASE}/log-behaviour`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        user_id: CURRENT_USER_ID,
+                        form_id: CURRENT_FORM_ID,
+                        selected_datatype: dataType,
+                        selected_dataid: dataId,
+                        display_data: textLabel,             
+                        current_form_state: WORKSPACE_STORE
+                    })
+                });
+                const result = await response.json();
+                if (result.status === "success") {
+                    indicator.innerText = "✓ Auto-saved successfully";
+                    indicator.className = "text-[10px] font-mono text-emerald-400";
+                    updatePerformanceMetricsDashboard();
+                }
+            } catch (err) {
+                indicator.innerText = "❌ Auto-save failed";
+                indicator.className = "text-[10px] font-mono text-red-400";
+            }
+        }
+
+        async function triggerIntelligentFormAutofill(triggerType, triggerId) {
+            try {
+                const response = await fetch(`${API_BASE}/autofill-form`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        user_id: CURRENT_USER_ID,
+                        form_id: CURRENT_FORM_ID,
+                        trigger_type: triggerType,
+                        trigger_id: parseInt(triggerId)
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.predictions) {
+                    Object.keys(data.predictions).forEach(key => {
+                        const openTray = document.getElementById(`tray-${key}`);
+                        if (openTray) openTray.classList.add("hidden");
+                        
+                        const ghostEl = document.getElementById(`ghost-${key}`);
+                        if (ghostEl) ghostEl.innerText = "";
+
+                        if (key !== triggerType) {
+                            const pred = data.predictions[key];
+                            const fieldEl = document.getElementById(`input-${key}`);
+                            if (fieldEl) {
+                                fieldEl.value = pred.name;
+                                fieldEl.dataset.isTyping = "false";
+                                WORKSPACE_STORE[key] = pred.id;
+                                
+                                const fieldWrapper = fieldEl.parentElement;
+                                fieldWrapper.classList.add("border-amber-500/50");
+                                setTimeout(() => {
+                                    fieldWrapper.classList.remove("border-amber-500/50");
+                                }, 1200);
+                            }
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error("Autofill matrix synchronization paused: ", err);
+            }
+        }
+
+        function initializeFormFields() {
+            const container = document.getElementById("picklist-form-space");
+            container.innerHTML = "";
+            PICKLIST_FIELDS.forEach((field, index) => {
+                const card = document.createElement("div");
+                card.className = "card-container p-5 rounded-xl relative flex flex-col";
+                card.innerHTML = `
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">${field.label}</label>
+                    <div class="relative rounded-lg bg-[#18181c] border border-neutral-800 focus-within:border-neutral-600 transition h-12 flex items-center">
+                        <div id="ghost-${field.id}" class="ghost-overlay absolute inset-y-0 left-0 flex items-center pl-4 text-sm font-mono whitespace-pre"></div>
+                        <input type="text" id="input-${field.id}" data-type="${field.id}" data-index="${index}" placeholder="${field.placeholder}" autocomplete="off" class="w-full h-full bg-transparent text-sm text-white font-sans pl-4 pr-12 focus:outline-none relative z-10" />
+                        <div class="absolute right-4 flex items-center pointer-events-none text-neutral-500 text-xs">▼</div>
+                    </div>
+                    <div id="tray-${field.id}" class="dropdown-tray hidden"></div>
+                `;
+                container.appendChild(card);
+            });
+            setupUnifiedEventPipelines();
+        }
+
+        function setupUnifiedEventPipelines() {
+            PICKLIST_FIELDS.forEach(field => {
+                const inputEl = document.getElementById(`input-${field.id}`);
+                const trayEl = document.getElementById(`tray-${field.id}`);
+                const ghostEl = document.getElementById(`ghost-${field.id}`);
+                let activeItemsList = [];
+
+                async function fetchFromMasterPool(queryValue) {
+                    try {
+                        const res = await fetch(`${API_BASE}/autocomplete`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ 
+                                user_id: CURRENT_USER_ID, 
+                                form_id: CURRENT_FORM_ID,
+                                entity_type: field.id, 
+                                query: queryValue,
+                                current_form_state: WORKSPACE_STORE  
+                            })
+                        });
+                        activeItemsList = await res.json();
+                        renderTrayElements(activeItemsList, inputEl, trayEl, ghostEl, async (item) => {
+                             inputEl.value = item.name;
+                             inputEl.dataset.isTyping = "false";
+                             trayEl.classList.add("hidden"); 
+                             ghostEl.innerText = "";
+                             WORKSPACE_STORE[field.id] = item.id;
+
+                             PICKLIST_FIELDS.forEach(f => {
+                                 const g = document.getElementById(`ghost-${f.id}`);
+                                 if (g) g.innerText = "";
+                             });
+
+                            await fireAutomaticBackgroundSave(field.id, item.id, item.name);
+                            await triggerIntelligentFormAutofill(field.id, item.id);
+
+                            const nextIndex = parseInt(inputEl.getAttribute("data-index")) + 1;
+                            if (nextIndex < PICKLIST_FIELDS.length) {
+                                setTimeout(() => { 
+                                    const nextInput = document.getElementById(`input-${PICKLIST_FIELDS[nextIndex].id}`);
+                                    if (nextInput) nextInput.focus(); 
+                                }, 50);
+                            }
+                        });
+                    } catch (err) { console.error(err); }
+                }
+
+                if (inputEl) {
+                    inputEl.addEventListener("input", (e) => {
+                        inputEl.dataset.isTyping = "true";
+                        fetchFromMasterPool(e.target.value);
+                    });
+                    inputEl.addEventListener("click", () => { fetchFromMasterPool(inputEl.value); });
+                    inputEl.addEventListener("focus", () => { fetchFromMasterPool(inputEl.value); });
+                    inputEl.addEventListener("blur", () => { inputEl.dataset.isTyping = "false"; });
+
+                    inputEl.addEventListener("keydown", async (e) => {
+                        if ((e.key === "Tab" || e.key === "ArrowRight") && ghostEl.innerText && activeItemsList.length > 0) {
+                            e.preventDefault();
+                            const selectedItem = activeItemsList[0];
+                            inputEl.value = selectedItem.name;
+                            inputEl.dataset.isTyping = "false";
+                            WORKSPACE_STORE[field.id] = selectedItem.id;
+                            trayEl.classList.add("hidden"); 
+                            ghostEl.innerText = "";
+                            
+                            PICKLIST_FIELDS.forEach(f => {
+                                const g = document.getElementById(`ghost-${f.id}`);
+                                if (g) g.innerText = "";
+                            });
+
+                            await fireAutomaticBackgroundSave(field.id, selectedItem.id, selectedItem.name);
+                            await triggerIntelligentFormAutofill(field.id, selectedItem.id);
+
+                            const nextIndex = parseInt(inputEl.getAttribute("data-index")) + 1;
+                            if (nextIndex < PICKLIST_FIELDS.length) {
+                                const nextInput = document.getElementById(`input-${PICKLIST_FIELDS[nextIndex].id}`);
+                                if (nextInput) nextInput.focus();
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        function selectSeparateType(type) {
+            ACTIVE_SEPARATE_TYPE = type;
+            SEPARATE_SELECTED_ID = null;
+            
+            document.getElementById("lbl-separate-title").innerText = `${type} Dedicated Selector Workspace`;
+            const inputEl = document.getElementById("input-SeparateField");
+            if (inputEl) {
+                inputEl.value = "";
+                inputEl.dataset.isTyping = "false";
+                inputEl.placeholder = `Click or search to select custom ${type}...`;
+            }
+            document.getElementById("ghost-SeparateField").innerText = "";
+            document.getElementById("tray-SeparateField").classList.add("hidden");
+
+            document.querySelectorAll(".sep-type-btn").forEach(btn => {
+                if(btn.getAttribute("data-type") === type) {
+                    btn.className = "sep-type-btn py-2 text-xs font-semibold rounded-lg card-container border border-amber-500/40 text-white bg-neutral-800 transition";
+                } else {
+                    btn.className = "sep-type-btn py-2 text-xs font-semibold rounded-lg card-container text-neutral-400 hover:text-white transition";
+                }
+            });
+        }
+
+        function setupSeparateFieldPipeline() {
+            const inputEl = document.getElementById("input-SeparateField");
+            const trayEl = document.getElementById("tray-SeparateField");
+            const ghostEl = document.getElementById("ghost-SeparateField");
+            let separateItemsList = [];
+
+            async function fetchSeparatePool(queryValue) {
+                try {
+                    const res = await fetch(`${API_BASE}/autocomplete`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ 
+                            user_id: CURRENT_USER_ID, 
+                            form_id: CURRENT_FORM_ID,
+                            entity_type: ACTIVE_SEPARATE_TYPE, 
+                            query: queryValue,
+                            current_form_state: WORKSPACE_STORE
+                        })
+                    });
+                    separateItemsList = await res.json();
+                    renderTrayElements(separateItemsList, inputEl, trayEl, ghostEl, (item) => {
+                        inputEl.value = item.name;
+                        inputEl.dataset.isTyping = "false";
+                        SEPARATE_SELECTED_ID = item.id;
+                        WORKSPACE_STORE[ACTIVE_SEPARATE_TYPE] = item.id; 
+                        trayEl.classList.add("hidden"); ghostEl.innerText = "";
+                        
+                        fireAutomaticBackgroundSave(ACTIVE_SEPARATE_TYPE, item.id, item.name);
+                    });
+                } catch (err) { console.error(err); }
+            }
+
+            if (inputEl) {
+                inputEl.addEventListener("input", (e) => {
+                    inputEl.dataset.isTyping = "true";
+                    fetchSeparatePool(e.target.value);
+                });
+                inputEl.addEventListener("click", () => { fetchSeparatePool(inputEl.value); });
+                inputEl.addEventListener("focus", () => { fetchSeparatePool(inputEl.value); });
+                inputEl.addEventListener("blur", () => { inputEl.dataset.isTyping = "false"; });
+
+                inputEl.addEventListener("keydown", (e) => {
+                    if ((e.key === "Tab" || e.key === "ArrowRight") && ghostEl.innerText && separateItemsList.length > 0) {
+                        e.preventDefault();
+                        const selectedItem = separateItemsList[0];
+                        inputEl.value = selectedItem.name;
+                        inputEl.dataset.isTyping = "false";
+                        SEPARATE_SELECTED_ID = selectedItem.id;
+                        WORKSPACE_STORE[ACTIVE_SEPARATE_TYPE] = selectedItem.id;
+                        trayEl.classList.add("hidden"); ghostEl.innerText = "";
+                        
+                        fireAutomaticBackgroundSave(ACTIVE_SEPARATE_TYPE, selectedItem.id, selectedItem.name);
+                    }
+                });
+            }
+
+            document.addEventListener("click", (e) => {
+                PICKLIST_FIELDS.forEach(field => {
+                    const el = document.getElementById(`input-${field.id}`);
+                    const tr = document.getElementById(`tray-${field.id}`);
+                    if (el && !el.contains(e.target) && !tr.contains(e.target)) tr.classList.add("hidden");
+                });
+                if (inputEl && !inputEl.contains(e.target) && !trayEl.contains(e.target)) trayEl.classList.add("hidden");
+            });
+        }
+
+        function renderTrayElements(items, inputEl, trayEl, ghostEl, clickBindingCallback) {
+            trayEl.innerHTML = "";
+            if (items.length === 0) { trayEl.classList.add("hidden"); ghostEl.innerText = ""; return; }
+
+            const currentVal = inputEl.value;
+            const firstItem = items[0];
+            
+            // CRITICAL FIX: Only project ghost suggestions if the user is actively focused and typing inside this field box
+            if (document.activeElement === inputEl && inputEl.dataset.isTyping === "true" && currentVal && firstItem.name.toLowerCase().startsWith(currentVal.toLowerCase())) {
+                ghostEl.innerText = currentVal + firstItem.name.substring(currentVal.length);
+            } else { 
+                ghostEl.innerText = ""; 
+            }
+
+            trayEl.classList.remove("hidden");
+            items.forEach(item => {
+                const row = document.createElement("div");
+                row.className = "flex justify-between items-center px-4 py-3 cursor-pointer hover:bg-neutral-800 transition text-sm font-sans border-b border-neutral-800/40 last:border-0";
+                
+                if (item.is_ai_prediction) {
+                    row.innerHTML = `
+                        <div class="text-neutral-200"><span class="text-amber-400 font-medium">${item.name}</span></div>
+                        <span class="badge-ai text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider font-mono">✦ AI Prediction</span>
+                    `;
+                } else {
+                    row.innerHTML = `
+                        <div class="text-neutral-200"><span class="text-neutral-300 font-medium">${item.name}</span></div>
+                    `;
+                }
+
+                row.onclick = (e) => { e.stopPropagation(); clickBindingCallback(item); };
+                trayEl.appendChild(row);
+            });
+        }
+
+        window.onload = fetchAvailableUsers;
+    </script>
+</body>
+</html>
