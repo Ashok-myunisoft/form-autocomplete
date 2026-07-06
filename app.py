@@ -7,7 +7,7 @@ import numpy as np
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -15,7 +15,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
 
 load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("DB_CONNECTION_STRING") or os.getenv("DB_URL")
 
 MODEL_CACHE = {}
 
@@ -67,22 +67,22 @@ class SingleSaveRequest(BaseModel):
     user_id: int
     form_id: int = 1                 
     selected_datatype: str
-    selected_dataid: int
+    selected_dataid: Optional[int] = None
     display_data: str               
-    current_form_state: Dict[str, Optional[int]]
+    current_form_state: Dict[str, Any]
 
 class AutocompleteContextRequest(BaseModel):
     user_id: int
     form_id: int = 1                 
     entity_type: str
     query: str
-    current_form_state: Dict[str, Optional[int]]
+    current_form_state: Dict[str, Any]
 
 class AutofillFormRequest(BaseModel):
     user_id: int
     form_id: int = 1
-    trigger_type: str              
-    trigger_id: int                
+    trigger_type: Optional[str] = None
+    trigger_id: Optional[int] = None
 
 class DropdownItem(BaseModel):
     id: int
@@ -146,6 +146,66 @@ def save_single_interaction(payload: SingleSaveRequest, conn=Depends(get_db)):
     json_form_data = json.dumps(payload.current_form_state)
     try:
         with conn.cursor() as cur:
+            selected_dataid = payload.selected_dataid
+            display_data = payload.display_data.strip()
+            
+            # Resolve or create ID if it is Form 1 and selected_dataid is null
+            if payload.form_id == 1:
+                meta = get_master_table_meta(payload.selected_datatype)
+                table_name = meta["table"]
+                
+                # Check if it already exists in the master table (case-insensitive)
+                if meta.get("has_code"):
+                    cur.execute(f"SELECT id FROM {table_name} WHERE LOWER(name) = %s OR LOWER(code) = %s LIMIT 1;", (display_data.lower(), display_data.lower()))
+                else:
+                    cur.execute(f"SELECT id FROM {table_name} WHERE LOWER(name) = %s LIMIT 1;", (display_data.lower(),))
+                
+                row = cur.fetchone()
+                if row:
+                    selected_dataid = row["id"]
+                else:
+                    # If it doesn't exist, insert it into the master table!
+                    if meta.get("has_code"):
+                        # Generate a clean code
+                        code_val = "".join(c for c in display_data if c.isalnum())[:10].upper()
+                        if not code_val:
+                            code_val = "GEN" + str(int(time.time()))[-7:]
+                        
+                        # Ensure code uniqueness
+                        cur.execute(f"SELECT id FROM {table_name} WHERE code = %s LIMIT 1;", (code_val,))
+                        if cur.fetchone():
+                            code_val = (code_val[:7] + str(int(time.time()))[-3:])
+                            
+                        # Insert with departmentname column if table is MAssignee or MIncharge
+                        if table_name in ["MAssignee", "MIncharge"]:
+                            cur.execute(f"INSERT INTO {table_name} (code, name, departmentname) VALUES (%s, %s, %s) RETURNING id;", (code_val, display_data, "General"))
+                        else:
+                            cur.execute(f"INSERT INTO {table_name} (code, name) VALUES (%s, %s) RETURNING id;", (code_val, display_data))
+                    else:
+                        cur.execute(f"INSERT INTO {table_name} (name) VALUES (%s) RETURNING id;", (display_data,))
+                    
+                    row = cur.fetchone()
+                    selected_dataid = row["id"]
+                    
+                    # Rebuild vectorizer cache for this table to include the new row immediately
+                    cur.execute(f"SELECT name FROM {table_name};")
+                    all_rows = cur.fetchall()
+                    if all_rows:
+                        names = [r["name"] for r in all_rows]
+                        vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(2, 5))
+                        tfidf_matrix = vectorizer.fit_transform(names)
+                        MODEL_CACHE[payload.selected_datatype.lower()] = {
+                            "vectorizer": vectorizer, "tfidf_matrix": tfidf_matrix, "names": names
+                        }
+            
+            # For Form 2 or fallback, generate a string numeric ID
+            if selected_dataid is None:
+                hash_val = 0
+                for c in display_data:
+                    hash_val = ((hash_val << 5) - hash_val) + ord(c)
+                    hash_val &= 0xFFFFFFFF
+                selected_dataid = -abs(hash_val if hash_val < 0x80000000 else hash_val - 0x100000000)
+
             insert_query = """
                 INSERT INTO LUserBehaviour (UserID, FormID, SelectedDataType, SelectedDataID, DisplayData, FormData)
                 VALUES (%s, %s, %s, %s, %s, %s::json);
@@ -154,12 +214,16 @@ def save_single_interaction(payload: SingleSaveRequest, conn=Depends(get_db)):
                 payload.user_id, 
                 payload.form_id, 
                 payload.selected_datatype, 
-                payload.selected_dataid, 
-                payload.display_data, 
+                selected_dataid, 
+                display_data, 
                 json_form_data
             ))
         conn.commit()
-        return {"status": "success", "message": f"Auto-saved interaction: {payload.selected_datatype}"}
+        return {
+            "status": "success", 
+            "message": f"Auto-saved interaction: {payload.selected_datatype}",
+            "resolved_id": selected_dataid
+        }
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -177,7 +241,7 @@ def get_contextual_predictions(payload: AutocompleteContextRequest, conn=Depends
             try:
                 val_int = int(v)
                 condition = f"(FormData->>'{k}')::int = {val_int}"
-            except ValueError:
+            except (ValueError, TypeError):
                 condition = f"FormData->>'{k}' = '{v}'"
                 
             context_filters.append(condition)
@@ -268,28 +332,34 @@ def get_contextual_predictions(payload: AutocompleteContextRequest, conn=Depends
 def predict_entire_form_footprint(payload: AutofillFormRequest, conn=Depends(get_db)):
     try:
         with conn.cursor() as cur:
-            lookup_query = f"""
-                SELECT FormData
-                FROM LUserBehaviour
-                WHERE UserID = %s 
-                  AND FormID = %s 
-                  AND (FormData->>%s)::int = %s
-                ORDER BY (
-                  CASE WHEN FormData->>'Activity' IS NOT NULL AND FormData->>'Activity' != 'null' THEN 1 ELSE 0 END +
-                  CASE WHEN FormData->>'Allocation' IS NOT NULL AND FormData->>'Allocation' != 'null' THEN 1 ELSE 0 END +
-                  CASE WHEN FormData->>'Assignee' IS NOT NULL AND FormData->>'Assignee' != 'null' THEN 1 ELSE 0 END +
-                  CASE WHEN FormData->>'Incharge' IS NOT NULL AND FormData->>'Incharge' != 'null' THEN 1 ELSE 0 END +
-                  CASE WHEN FormData->>'Requester' IS NOT NULL AND FormData->>'Requester' != 'null' THEN 1 ELSE 0 END
-                ) DESC, TimeStamp DESC LIMIT 1;
-            """
-            cur.execute(lookup_query, (
-                payload.user_id, 
-                payload.form_id, 
-                payload.trigger_type, 
-                payload.trigger_id
-            ))
-            row = cur.fetchone()
-            
+            row = None
+            # If trigger details are missing or empty, fetch the most recent completed form state
+            if not payload.trigger_type or payload.trigger_id is None or payload.trigger_id == 0:
+                cur.execute("""
+                    SELECT FormData FROM LUserBehaviour 
+                    WHERE UserID = %s AND FormID = %s
+                    ORDER BY TimeStamp DESC LIMIT 1;
+                """, (payload.user_id, payload.form_id))
+                row = cur.fetchone()
+            else:
+                # Standard Task layout structure lookup path
+                lookup_query = """
+                    SELECT FormData FROM LUserBehaviour 
+                    WHERE UserID = %s AND FormID = %s AND SelectedDataType = %s AND SelectedDataID = %s
+                    ORDER BY TimeStamp DESC LIMIT 1;
+                """
+                cur.execute(lookup_query, (payload.user_id, payload.form_id, payload.trigger_type, payload.trigger_id))
+                row = cur.fetchone()
+                    
+            if not row or not row.get("formdata"):
+                # Fallback: get most recent completed form state for this user overall
+                cur.execute("""
+                    SELECT FormData FROM LUserBehaviour 
+                    WHERE UserID = %s AND FormID = %s
+                    ORDER BY TimeStamp DESC LIMIT 1;
+                """, (payload.user_id, payload.form_id))
+                row = cur.fetchone()
+                
             if not row or not row.get("formdata"):
                 return {"predictions": {}}
                 
@@ -299,14 +369,28 @@ def predict_entire_form_footprint(payload: AutofillFormRequest, conn=Depends(get
             predictions_map = {}
             for field_key, field_id in form_snapshot.items():
                 if field_id is not None and str(field_id).lower() != 'null':
-                    meta = get_master_table_meta(field_key)
-                    cur.execute(f"SELECT name FROM {meta['table']} WHERE id = %s;", (int(field_id),))
-                    master_row = cur.fetchone()
-                    if master_row:
+                    cur.execute("""
+                        SELECT DisplayData 
+                        FROM LUserBehaviour 
+                        WHERE FormID = %s AND SelectedDataType = %s AND SelectedDataID = %s 
+                        ORDER BY TimeStamp DESC LIMIT 1;
+                    """, (payload.form_id, field_key, int(field_id)))
+                    display_row = cur.fetchone()
+                    
+                    if display_row:
                         predictions_map[field_key] = {
                             "id": int(field_id),
-                            "name": master_row["name"]
+                            "name": display_row["displaydata"]
                         }
+                    elif payload.form_id == 1:
+                        meta = get_master_table_meta(field_key)
+                        cur.execute(f"SELECT name FROM {meta['table']} WHERE id = %s;", (int(field_id),))
+                        master_row = cur.fetchone()
+                        if master_row:
+                            predictions_map[field_key] = {
+                                "id": int(field_id),
+                                "name": master_row["name"]
+                            }
                         
             return {"predictions": predictions_map}
             
