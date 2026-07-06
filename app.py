@@ -46,8 +46,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"❌ Critical Error during live memory initialization: {e}")
     print("=" * 60)
-    print("🎉 Memory pipeline training complete. Server is ready.")
-    print("=" * 60)
     yield
     MODEL_CACHE.clear()
 
@@ -149,12 +147,10 @@ def save_single_interaction(payload: SingleSaveRequest, conn=Depends(get_db)):
             selected_dataid = payload.selected_dataid
             display_data = payload.display_data.strip()
             
-            # Resolve or create ID if it is Form 1 and selected_dataid is null
             if payload.form_id == 1:
                 meta = get_master_table_meta(payload.selected_datatype)
                 table_name = meta["table"]
                 
-                # Check if it already exists in the master table (case-insensitive)
                 if meta.get("has_code"):
                     cur.execute(f"SELECT id FROM {table_name} WHERE LOWER(name) = %s OR LOWER(code) = %s LIMIT 1;", (display_data.lower(), display_data.lower()))
                 else:
@@ -164,19 +160,15 @@ def save_single_interaction(payload: SingleSaveRequest, conn=Depends(get_db)):
                 if row:
                     selected_dataid = row["id"]
                 else:
-                    # If it doesn't exist, insert it into the master table!
                     if meta.get("has_code"):
-                        # Generate a clean code
                         code_val = "".join(c for c in display_data if c.isalnum())[:10].upper()
                         if not code_val:
                             code_val = "GEN" + str(int(time.time()))[-7:]
                         
-                        # Ensure code uniqueness
                         cur.execute(f"SELECT id FROM {table_name} WHERE code = %s LIMIT 1;", (code_val,))
                         if cur.fetchone():
                             code_val = (code_val[:7] + str(int(time.time()))[-3:])
                             
-                        # Insert with departmentname column if table is MAssignee or MIncharge
                         if table_name in ["MAssignee", "MIncharge"]:
                             cur.execute(f"INSERT INTO {table_name} (code, name, departmentname) VALUES (%s, %s, %s) RETURNING id;", (code_val, display_data, "General"))
                         else:
@@ -187,7 +179,6 @@ def save_single_interaction(payload: SingleSaveRequest, conn=Depends(get_db)):
                     row = cur.fetchone()
                     selected_dataid = row["id"]
                     
-                    # Rebuild vectorizer cache for this table to include the new row immediately
                     cur.execute(f"SELECT name FROM {table_name};")
                     all_rows = cur.fetchall()
                     if all_rows:
@@ -198,13 +189,23 @@ def save_single_interaction(payload: SingleSaveRequest, conn=Depends(get_db)):
                             "vectorizer": vectorizer, "tfidf_matrix": tfidf_matrix, "names": names
                         }
             
-            # For Form 2 or fallback, generate a string numeric ID
-            if selected_dataid is None:
-                hash_val = 0
-                for c in display_data:
-                    hash_val = ((hash_val << 5) - hash_val) + ord(c)
-                    hash_val &= 0xFFFFFFFF
-                selected_dataid = -abs(hash_val if hash_val < 0x80000000 else hash_val - 0x100000000)
+            # FIXED: Safe signature assignment for FormID = 2 avoiding constraint leaks
+            if selected_dataid is None or payload.form_id == 2:
+                # First check if this raw value was already logged for this user/field to maintain identity
+                cur.execute("""
+                    SELECT SelectedDataID FROM LUserBehaviour 
+                    WHERE FormID = %s AND SelectedDataType = %s AND LOWER(DisplayData) = %s LIMIT 1;
+                """, (payload.form_id, payload.selected_datatype, display_data.lower()))
+                existing_log = cur.fetchone()
+                
+                if existing_log:
+                    selected_dataid = existing_log["selecteddataid"]
+                else:
+                    # Generate a clean, compact positive sequence timestamp hash that fits smallint/integer constraints safely
+                    hash_val = 0
+                    for c in display_data:
+                        hash_val = (hash_val * 31 + ord(c)) & 0x7FFFFFFF
+                    selected_dataid = (hash_val % 1000000) + 10000
 
             insert_query = """
                 INSERT INTO LUserBehaviour (UserID, FormID, SelectedDataType, SelectedDataID, DisplayData, FormData)
@@ -230,9 +231,7 @@ def save_single_interaction(payload: SingleSaveRequest, conn=Depends(get_db)):
 
 @app.post("/api/autocomplete", response_model=List[DropdownItem])
 def get_contextual_predictions(payload: AutocompleteContextRequest, conn=Depends(get_db)):
-    meta = get_master_table_meta(payload.entity_type)
     top_historical_id = None
-    
     context_filters = []
     match_score_cases = []
     
@@ -281,51 +280,90 @@ def get_contextual_predictions(payload: AutocompleteContextRequest, conn=Depends
             row = cur.fetchone()
             if row: top_historical_id = int(row["selected_id"])
 
-    select_fields = "id, code, name" if meta["has_code"] else "id, name"
-    with conn.cursor() as cur:
-        cur.execute(f"SELECT {select_fields} FROM {meta['table']} ORDER BY name ASC;")
-        master_items = cur.fetchall()
-        
-    if not master_items: return []
     query_str = payload.query.strip().lower()
-    
-    entity_key = payload.entity_type.lower()
-    similarities = np.zeros(len(master_items))
-    if query_str and entity_key in MODEL_CACHE:
-        try:
-            artifact = MODEL_CACHE[entity_key]
-            query_vec = artifact["vectorizer"].transform([query_str])
-            raw_scores = cosine_similarity(query_vec, artifact["tfidf_matrix"]).flatten()
-            name_to_score = {name.lower(): score for name, score in zip(artifact["names"], raw_scores)}
-            for idx, item in enumerate(master_items):
-                similarities[idx] = name_to_score.get(item["name"].lower(), 0.0)
-        except Exception: pass
+
+    if payload.form_id == 1:
+        meta = get_master_table_meta(payload.entity_type)
+        select_fields = "id, code, name" if meta["has_code"] else "id, name"
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT {select_fields} FROM {meta['table']} ORDER BY name ASC;")
+            master_items = cur.fetchall()
+
+        if not master_items: return []
+
+        entity_key = payload.entity_type.lower()
+        similarities = np.zeros(len(master_items))
+        if query_str and entity_key in MODEL_CACHE:
+            try:
+                artifact = MODEL_CACHE[entity_key]
+                query_vec = artifact["vectorizer"].transform([query_str])
+                raw_scores = cosine_similarity(query_vec, artifact["tfidf_matrix"]).flatten()
+                name_to_score = {name.lower(): score for name, score in zip(artifact["names"], raw_scores)}
+                for idx, item in enumerate(master_items):
+                    similarities[idx] = name_to_score.get(item["name"].lower(), 0.0)
+            except Exception: pass
+
+        final_response = []
+        ai_item = None
+        regular_items = []
+
+        for idx, item in enumerate(master_items):
+            item_id = int(item["id"])
+            item_name = item["name"]
+            if query_str and query_str not in item_name.lower(): continue
+
+            is_ai = (top_historical_id is not None and item_id == top_historical_id)
+            dropdown_node = {
+                "id": item_id, "code": item.get("code"), "name": item_name,
+                "display_text": f"{item_id}. {item_name}", "is_ai_prediction": is_ai, "score": similarities[idx]
+            }
+            if is_ai: ai_item = dropdown_node
+            else: regular_items.append(dropdown_node)
+
+        if query_str: regular_items.sort(key=lambda x: x["score"], reverse=True)
+        if ai_item is not None:
+            ai_item.pop("score", None)
+            final_response.append(ai_item)
+        for item in regular_items:
+            item.pop("score", None)
+            final_response.append(item)
+
+        return final_response
+
+    # FormID = 2 Fallback matching purely learned history
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT DISTINCT ON (SelectedDataID) SelectedDataID as id, DisplayData as name
+            FROM LUserBehaviour
+            WHERE FormID = %s AND SelectedDataType = %s AND SelectedDataID IS NOT NULL
+            ORDER BY SelectedDataID, TimeStamp DESC;
+        """, (payload.form_id, payload.entity_type))
+        history_items = cur.fetchall()
+
+    if not history_items: return []
 
     final_response = []
     ai_item = None
     regular_items = []
 
-    for idx, item in enumerate(master_items):
+    for item in history_items:
         item_id = int(item["id"])
         item_name = item["name"]
         if query_str and query_str not in item_name.lower(): continue
 
         is_ai = (top_historical_id is not None and item_id == top_historical_id)
         dropdown_node = {
-            "id": item_id, "code": item.get("code"), "name": item_name,
-            "display_text": f"{item_id}. {item_name}", "is_ai_prediction": is_ai, "score": similarities[idx]
+            "id": item_id, "code": None, "name": item_name,
+            "display_text": f"{item_id}. {item_name}", "is_ai_prediction": is_ai
         }
         if is_ai: ai_item = dropdown_node
         else: regular_items.append(dropdown_node)
 
-    if query_str: regular_items.sort(key=lambda x: x["score"], reverse=True)
+    regular_items.sort(key=lambda x: x["name"].lower())
     if ai_item is not None:
-        ai_item.pop("score", None)
         final_response.append(ai_item)
-    for item in regular_items:
-        item.pop("score", None)
-        final_response.append(item)
-        
+    final_response.extend(regular_items)
+
     return final_response
 
 @app.post("/api/autofill-form")
@@ -333,7 +371,6 @@ def predict_entire_form_footprint(payload: AutofillFormRequest, conn=Depends(get
     try:
         with conn.cursor() as cur:
             row = None
-            # If trigger details are missing or empty, fetch the most recent completed form state
             if not payload.trigger_type or payload.trigger_id is None or payload.trigger_id == 0:
                 cur.execute("""
                     SELECT FormData FROM LUserBehaviour 
@@ -342,17 +379,50 @@ def predict_entire_form_footprint(payload: AutofillFormRequest, conn=Depends(get
                 """, (payload.user_id, payload.form_id))
                 row = cur.fetchone()
             else:
-                # Standard Task layout structure lookup path
-                lookup_query = """
-                    SELECT FormData FROM LUserBehaviour 
+                if payload.form_id == 1:
+                    score_calculation = """
+                        (CASE WHEN (FormData->>'Activity')   IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN (FormData->>'Allocation') IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN (FormData->>'Assignee')   IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN (FormData->>'Incharge')   IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN (FormData->>'Requester')  IS NOT NULL THEN 1 ELSE 0 END)
+                    """
+                else:
+                    score_calculation = """
+                        (CASE WHEN (FormData->>'Origin')      IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN (FormData->>'Destination') IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN (FormData->>'TravelDate')  IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN (FormData->>'TravelMode')  IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN (FormData->>'TravelsName') IS NOT NULL THEN 1 ELSE 0 END)
+                    """
+
+                lookup_query = f"""
+                    SELECT FormData, ({score_calculation}) AS filled_count
+                    FROM LUserBehaviour 
                     WHERE UserID = %s AND FormID = %s AND SelectedDataType = %s AND SelectedDataID = %s
-                    ORDER BY TimeStamp DESC LIMIT 1;
+                    ORDER BY filled_count DESC, TimeStamp DESC LIMIT 1;
                 """
                 cur.execute(lookup_query, (payload.user_id, payload.form_id, payload.trigger_type, payload.trigger_id))
                 row = cur.fetchone()
+
+                if row and row["formdata"]:
+                    snap = row["formdata"] if isinstance(row["formdata"], dict) else json.loads(row["formdata"])
+                    non_null = sum(1 for v in snap.values() if v is not None)
+                    if non_null <= 1:
+                        cur.execute(f"""
+                            SELECT FormData, ({score_calculation}) AS filled_count
+                            FROM LUserBehaviour
+                            WHERE UserID = %s AND FormID = %s
+                            ORDER BY filled_count DESC, TimeStamp DESC LIMIT 1;
+                        """, (payload.user_id, payload.form_id))
+                        richer_row = cur.fetchone()
+                        if richer_row and richer_row.get("formdata"):
+                            richer_snap = richer_row["formdata"] if isinstance(richer_row["formdata"], dict) else json.loads(richer_row["formdata"])
+                            richer_non_null = sum(1 for v in richer_snap.values() if v is not None)
+                            if richer_non_null > non_null:
+                                row = richer_row
                     
             if not row or not row.get("formdata"):
-                # Fallback: get most recent completed form state for this user overall
                 cur.execute("""
                     SELECT FormData FROM LUserBehaviour 
                     WHERE UserID = %s AND FormID = %s
@@ -368,6 +438,8 @@ def predict_entire_form_footprint(payload: AutofillFormRequest, conn=Depends(get
             
             predictions_map = {}
             for field_key, field_id in form_snapshot.items():
+                if payload.trigger_type and field_key == payload.trigger_type:
+                    continue
                 if field_id is not None and str(field_id).lower() != 'null':
                     cur.execute("""
                         SELECT DisplayData 
@@ -395,7 +467,4 @@ def predict_entire_form_footprint(payload: AutofillFormRequest, conn=Depends(get
             return {"predictions": predictions_map}
             
     except Exception as e:
-        import traceback
-        print("--- AUTOFILL CRASH TRACEBACK ---")
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
