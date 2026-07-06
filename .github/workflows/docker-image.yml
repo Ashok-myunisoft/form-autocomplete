@@ -29,5 +29,5 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            YOUR_DOCKERHUB_USERNAME/YOUR_IMAGE_NAME:latest
-            YOUR_DOCKERHUB_USERNAME/YOUR_IMAGE_NAME:${{ github.sha }}
+            ashokmyunisoft/form-autocomplete:latest
+            ashokmyunisoft/form-autocomplete:${{ github.sha }}
