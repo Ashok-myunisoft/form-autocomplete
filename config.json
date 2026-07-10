@@ -1,0 +1,10 @@
+{
+  "SVC_ENDPOINTS": {
+    "requester": "prs/Employee.svc/GetEmployeePicklistSelect2/?FirstNumber=1&MaxResult=50",
+    "activity": "ms/Activity.svc/SelectList",
+    "allocation": "ads/Allocation.svc/SelectList/?FirstNumber=1&MaxResult=50",
+    "assignee": "prs/Employee.svc/GetEmployeePicklistSelect2/?FirstNumber=1&MaxResult=50",
+    "incharge": "prs/Employee.svc/GetEmployeePicklistSelect2/?FirstNumber=1&MaxResult=50",
+    "task": "crm/Task.svc/GetTaskPicklistSelect2/?FirstNumber=1&MaxResult=50"
+  }
+}

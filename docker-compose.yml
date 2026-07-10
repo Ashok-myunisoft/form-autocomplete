@@ -26,7 +26,7 @@ services:
     ports:
       - "8019:8019"
     environment:
-      - DATABASE_URL=postgresql://postgres:root@db:5432/mydb
+      - DATABASE_URL=postgresql://gbuser:aidev123@217.217.249.121:5432/auto_complete
     depends_on:
       db:
         condition: service_healthy
