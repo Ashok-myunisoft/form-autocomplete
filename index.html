@@ -51,6 +51,7 @@
 
 <body class="p-4 md:p-8 flex flex-col items-center min-h-screen justify-start pt-12 pb-24">
 
+    <!-- Step 1: Handshake Authentication Interface Gate Window -->
     <div id="auth-gate-view" class="w-full max-w-xl card-container p-6 rounded-2xl shadow-2xl mt-4 space-y-4">
         <div class="text-center">
             <h2 class="text-xl font-bold tracking-tight text-white">Dynamic Session Authentication Gate</h2>
@@ -68,6 +69,7 @@
         </button>
     </div>
 
+    <!-- Step 2: Main Operational Workspace Hub Window -->
     <div id="main-workspace-view" class="w-full max-w-2xl space-y-6 hidden">
         <header class="flex justify-between items-center border-b border-neutral-800/60 pb-2">
             <div>
@@ -141,7 +143,6 @@
             { id: "Requester", label: "Requester", placeholder: "Click or type to look up requesters..." }
         ];
 
-        // 🚀 ZERO HEADERS REQUIRED FOR ALL SUBSEQUENT API OPERATIONS
         function getRequestHeaders() {
             return { "Content-Type": "application/json" };
         }
@@ -162,12 +163,11 @@
             handshakeBtn.innerText = "⏳ Running Handshake Setup Matrix...";
 
             try {
-                // Sent exactly once as a header payload block on initialization
                 const response = await fetch(`${API_BASE}/initialize`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        "login-dto": JSON.stringify(JSON.parse(textAreaInput))
+                        "Login": JSON.stringify(JSON.parse(textAreaInput)) // Updated Header Alias to match 'Login' strictly
                     }
                 });
 
