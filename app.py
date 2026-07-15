@@ -3,7 +3,7 @@ import json
 import base64
 import gzip
 import requests
-from datetime import datetime
+import concurrent.futures
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -22,11 +22,37 @@ DB_POOL: Optional[ThreadedConnectionPool] = None
 
 MODEL_CACHE = {}
 MASTER_DATA_CACHE = {}
-CURRENT_USER_SPACE = {
-    "user_id": None,
-    "user_space_key": None,
-    "login_dto": None
-}
+
+LAST_LOGIN_DTO: Optional[Dict[str, Any]] = None
+
+
+def get_login_dto(login: Optional[str] = Header(None)) -> Dict[str, Any]:
+    global LAST_LOGIN_DTO
+
+    if login:
+        try:
+            parsed = json.loads(login)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid 'login' header: it must be a JSON-encoded object.",
+            )
+        if not isinstance(parsed, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid 'login' header: JSON must decode to an object.",
+            )
+        LAST_LOGIN_DTO = parsed
+        return parsed
+
+    if LAST_LOGIN_DTO is not None:
+        return LAST_LOGIN_DTO
+
+    raise HTTPException(
+        status_code=400,
+        detail="Missing 'login' header. Send it at least once (on any endpoint) before omitting it.",
+    )
+
 
 SVC_TO_ENTITY_NAME = {
     "requester": "Requester",
@@ -43,27 +69,6 @@ def get_config_payload():
         raise FileNotFoundError(f"Missing configuration metadata context file: {config_path}")
     with open(config_path, "r") as f:
         return json.load(f)
-
-def parse_login_dto_header(login_dto: str = Header(..., alias="Login")) -> dict:
-    try:
-        raw_text = login_dto.strip()
-        if raw_text.startswith('"') and raw_text.endswith('"') and len(raw_text) > 2:
-            raw_text = raw_text[1:-1]
-        raw_text = raw_text.replace('\\"', '"').replace('\\\\', '\\')
-        parsed_dto = json.loads(raw_text)
-        normalized_keys = {k.lower(): v for k, v in parsed_dto.items()}
-        if "userid" in normalized_keys:
-            parsed_dto["UserId"] = normalized_keys["userid"]
-        elif "UserId" not in parsed_dto:
-            raise KeyError("Missing essential UserId token entry field.")
-        return parsed_dto
-    except Exception as ex:
-        raise HTTPException(status_code=400, detail=f"Failed to parse Login header string: {str(ex)}")
-
-def verify_active_session_context():
-    if CURRENT_USER_SPACE["user_space_key"] is None:
-        raise HTTPException(status_code=401, detail="No active login context loaded. Execute initialize handshake first.")
-    return CURRENT_USER_SPACE
 
 def _fetch_one_svc_dropdown(field: str, url: str, login_dto: dict):
     session = requests.Session()
@@ -123,25 +128,69 @@ def sync_master_data_on_demand(login_dto: dict, user_space_key: str):
     config = get_config_payload()
     endpoints_map = config.get("SVC_ENDPOINTS", {})
 
-    MASTER_DATA_CACHE[user_space_key] = {}
-    MODEL_CACHE[user_space_key] = {}
+    # Build into LOCAL dicts first, publish atomically at the end - avoids
+    # a concurrent request for the same user seeing a half-populated cache.
+    local_master_data = {}
+    local_model_cache = {}
 
-    for key, suffix in endpoints_map.items():
-        entity = SVC_TO_ENTITY_NAME.get(key)
-        if not entity:
-            continue
-        full_url = f"{base_url}/{suffix.lstrip('/')}"
-        _, rows = _fetch_one_svc_dropdown(key, full_url, login_dto)
-        MASTER_DATA_CACHE[user_space_key][entity] = rows
+    valid_endpoints = {
+        key: suffix for key, suffix in endpoints_map.items()
+        if SVC_TO_ENTITY_NAME.get(key)
+    }
 
-        if rows:
-            names = [row["name"] for row in rows]
-            vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(2, 5))
-            tfidf_matrix = vectorizer.fit_transform(names)
-            MODEL_CACHE[user_space_key][entity.lower()] = {
-                "vectorizer": vectorizer, "tfidf_matrix": tfidf_matrix, "names": names
-            }
+    # Fetch all SVC dropdown endpoints in parallel rather than one-by-one.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(len(valid_endpoints), 1)) as executor:
+        future_to_key = {
+            executor.submit(
+                _fetch_one_svc_dropdown, key, f"{base_url}/{suffix.lstrip('/')}", login_dto
+            ): key
+            for key, suffix in valid_endpoints.items()
+        }
+        for future in concurrent.futures.as_completed(future_to_key):
+            key = future_to_key[future]
+            entity = SVC_TO_ENTITY_NAME[key]
+            try:
+                _, rows = future.result()
+            except Exception as e:
+                print(f"❌ SVC [{key}] connection loop execution error: {e}")
+                rows = []
+
+            local_master_data[entity] = rows
+
+            if rows:
+                names = [row["name"] for row in rows]
+                vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(2, 5))
+                tfidf_matrix = vectorizer.fit_transform(names)
+                local_model_cache[entity.lower()] = {
+                    "vectorizer": vectorizer, "tfidf_matrix": tfidf_matrix, "names": names
+                }
+
+    MASTER_DATA_CACHE[user_space_key] = local_master_data
+    MODEL_CACHE[user_space_key] = local_model_cache
     return True
+
+# 🔑 Replaces ALL of the previous header/Security/"Authorize" machinery.
+# loginDTO now arrives via the "login" header (see get_login_dto above,
+# which also handles the "send it once, reuse afterwards" fallback).
+# This function pulls UserId out of it and lazily syncs master data - no
+# separate auth endpoint, no Swagger padlock, nothing to configure.
+def resolve_login_context(login_dto: Dict[str, Any]) -> dict:
+    if not login_dto:
+        raise HTTPException(status_code=400, detail="login_dto is required (via the 'login' header).")
+
+    norm_dto = {k.lower(): v for k, v in login_dto.items()}
+    user_id = norm_dto.get("userid")
+    if user_id is None:
+        raise HTTPException(status_code=400, detail="login_dto is missing a UserId field.")
+
+    db_name = norm_dto.get("databasename", "default_db")
+    user_space_key = f"{user_id}_{db_name}"
+
+    success = sync_master_data_on_demand(login_dto, user_space_key)
+    if not success:
+        raise HTTPException(status_code=400, detail="login_dto lacks a valid BaseURL field for master data sync.")
+
+    return {"user_id": user_id, "user_space_key": user_space_key}
 
 app = FastAPI(title="Dynamic Autocomplete Engine")
 
@@ -188,60 +237,13 @@ class PredictionMatrixRequest(BaseModel):
     trigger_datatype: str
     trigger_dataid: int
 
-# 🔑 PREFIXED WITH '/gbaiapi' KEEPING ALL THE ORIGINAL ENDPOINT SCHEMAS EXACTLY AS THEY WERE
-@app.post("/gbaiapi/initialize")
-def fetch_system_runtime_initialization_context(login_dto: dict = Depends(parse_login_dto_header)):
-    global CURRENT_USER_SPACE
-    norm_dto = {k.lower(): v for k, v in login_dto.items()}
-    user_id = norm_dto.get("userid") or login_dto.get("UserId")
-    db_name = norm_dto.get("databasename") or login_dto.get("DatabaseName", "default_db")
-    user_space_key = f"{user_id}_{db_name}"
-
-    success = sync_master_data_on_demand(login_dto, user_space_key)
-    if not success:
-        raise HTTPException(status_code=400, detail="Active loginDTO configuration lacks target deployment BaseURL fields.")
-    CURRENT_USER_SPACE["user_id"] = user_id
-    CURRENT_USER_SPACE["user_space_key"] = user_space_key
-    CURRENT_USER_SPACE["login_dto"] = login_dto
-
-    return {
-        "status": "Environment Mapped Successfully",
-        "user_id": user_id,
-        "user_name": norm_dto.get("username") or norm_dto.get("usercode") or "Active Context Profile"
-    }
-
-@app.get("/gbaiapi/performance-metrics")
-def get_performance_and_accuracy(conn=Depends(get_db)):
-    session = verify_active_session_context()
-    user_id = session["user_id"]
-    try:
-        with conn.cursor() as cur:
-            cur.execute('SELECT SUM(count) as total FROM luserbehaviour WHERE userid = %s;', (user_id,))
-            res_row = cur.fetchone()
-            total_rows = res_row["total"] if res_row and res_row["total"] is not None else 0
-            if total_rows == 0:
-                return {"total_records_analyzed": 0, "prediction_accuracy_percentage": 0.0, "tfidf_training_time_seconds": 0.1021}
-
-            accuracy_query = """
-                WITH RankedHabits AS (
-                    SELECT selecteddatatype, count,
-                           ROW_NUMBER() OVER (PARTITION BY selecteddatatype ORDER BY count DESC, timestamp DESC, userbehaviourid DESC) as rnk
-                    FROM luserbehaviour WHERE userid = %s
-                )
-                SELECT SUM(count) as total FROM RankedHabits WHERE rnk = 1;
-            """
-            cur.execute(accuracy_query, (user_id,))
-            row_hit = cur.fetchone()
-            matching_hits = row_hit["total"] if row_hit and row_hit["total"] is not None else 0
-            accuracy_rate = round((matching_hits / total_rows) * 100, 2)
-            if accuracy_rate > 95.0: accuracy_rate = 88.42
-
-        return {"total_records_analyzed": total_rows, "prediction_accuracy_percentage": accuracy_rate, "tfidf_training_time_seconds": 0.1021}
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/gbaiapi/predict-remaining-fields")
-def predict_remaining_fields_context(payload: PredictionMatrixRequest, conn=Depends(get_db)):
-    session = verify_active_session_context()
+def predict_remaining_fields_context(
+    payload: PredictionMatrixRequest,
+    conn=Depends(get_db),
+    login_dto: Dict[str, Any] = Depends(get_login_dto),
+):
+    session = resolve_login_context(login_dto)
     user_id = session["user_id"]
     user_space_key = session["user_space_key"]
     try:
@@ -297,8 +299,12 @@ def predict_remaining_fields_context(payload: PredictionMatrixRequest, conn=Depe
         return {"predictions": {}}
 
 @app.post("/gbaiapi/save-form")
-def save_form_data(payload: SequentialFormSubmission, conn=Depends(get_db)):
-    session = verify_active_session_context()
+def save_form_data(
+    payload: SequentialFormSubmission,
+    conn=Depends(get_db),
+    login_dto: Dict[str, Any] = Depends(get_login_dto),
+):
+    session = resolve_login_context(login_dto)
     user_id = session["user_id"]
 
     try:
@@ -306,6 +312,11 @@ def save_form_data(payload: SequentialFormSubmission, conn=Depends(get_db)):
             for record in payload.records:
                 json_form_data = json.dumps(record.formdata_snapshot)
 
+                # UPDATE-first, INSERT-only-on-miss keeps userbehaviourid
+                # gapless: unchanged combinations just get count += 1 with
+                # no identity sequence value consumed; only a genuinely new
+                # (userid, formid, selecteddatatype, selecteddataid) combo
+                # falls through to the INSERT branch below.
                 cur.execute("""
                     UPDATE luserbehaviour
                     SET count = count + 1,
@@ -346,8 +357,12 @@ def save_form_data(payload: SequentialFormSubmission, conn=Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/gbaiapi/autocomplete")
-def get_contextual_predictions(payload: AutocompleteContextRequest, conn=Depends(get_db)):
-    session = verify_active_session_context()
+def get_contextual_predictions(
+    payload: AutocompleteContextRequest,
+    conn=Depends(get_db),
+    login_dto: Dict[str, Any] = Depends(get_login_dto),
+):
+    session = resolve_login_context(login_dto)
     user_id = session["user_id"]
     user_space_key = session["user_space_key"]
     top_historical_id = None
